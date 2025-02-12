@@ -109,7 +109,7 @@ const generateFormOverlays = (metadata) => {
 };
 
 const getUpdatedMetadataWithFormOverlay = (metadata) => {
-  const formOverlays = generateFormOverlays(metadata);
+  const formOverlays = generateFormOverlay(metadata);
   return {
     ...metadata,
     extensions: {
