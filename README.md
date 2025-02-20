@@ -1,6 +1,8 @@
-# Getting Started with Create React App
+## Use the link in the "About" section for using the webpage.
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Generates a default form/presentation using the extensions of the OCA package. <br>
+
+<br>
 
 ## Available Scripts
 
