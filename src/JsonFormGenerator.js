@@ -39,14 +39,33 @@ const generateOverlayForItem = (item) => {
   const attributes = item.capture_base?.attributes || {};
   const attributeKeys = Object.keys(attributes);
 
+
+  
+  let metaForBundle = item.overlays.meta.filter((m) => m.capture_base === captureBaseId);
+  if (metaForBundle.length === 0) {
+    metaForBundle = [
+      { language: "eng", name: "Default" },
+      { language: "fra", name: "Default" }
+    ];
+  }
+
+  const languages = metaForBundle.map((m) => m.language);
+  console.log("Languages:", languages);
+  const page_labels = {};
+  languages.forEach((lang) => {
+    const metaObj = metaForBundle.find((m) => m.language === lang);
+    const defaultLabel = metaObj ? `Page 1: ${metaObj.name}` : "Page 1: Default";
+    page_labels[lang] = { "page-1": defaultLabel };
+  });
+
   const overlay = {
-    d: `${captureBaseId}`,
-    type: "community/adc/presentation/v1.0",
+    d: "###presentationDigest###",
+    type: "###presentationType###",
     capture_base: captureBaseId,
-    language: ["eng", "fra"],
+    language: languages,
     pages: [],
     page_order: [],
-    page_labels: { eng: {}, fra: {} },
+    page_labels: page_labels,
     interaction: [],
   };
 
@@ -55,10 +74,6 @@ const generateOverlayForItem = (item) => {
     attribute_order: attributeKeys,
   });
   overlay.page_order.push("page-1");
-
-  // Set default page labels.
-  overlay.page_labels.eng["page-1"] = "Page 1: Default";
-  overlay.page_labels.fra["page-1"] = "Page 1: Default";
 
   const interactionArguments = {};
   attributeKeys.forEach((key) => {
@@ -86,8 +101,9 @@ const generateOverlayForItem = (item) => {
 
 const generateFormOverlays = (metadata) => {
   const overlays = [];
-  const mainBundle = metadata.oca_bundle.bundle;
-  const dependencies = metadata.oca_bundle.dependencies || [];
+  const mainBundle = metadata.oca_bundle?.bundle ?? metadata.bundle;
+  const dependencies = metadata.oca_bundle?.dependencies ?? metadata.dependencies ?? [];
+  
 
   normalizeEntryCodes(dependencies);
 
@@ -110,14 +126,39 @@ const generateFormOverlays = (metadata) => {
 
 const getUpdatedMetadataWithFormOverlay = (metadata) => {
   const formOverlays = generateFormOverlay(metadata);
+
+  if (metadata.oca_bundle) {
+    return {
+      ...metadata,
+      extensions: {
+        ...(metadata.extensions || {}),
+        form: formOverlays,
+      },
+    };
+  }
+
+  
+  if (metadata.bundle && metadata.dependencies) {
+    return {
+      oca_bundle: {
+        bundle: metadata.bundle,
+        dependencies: metadata.dependencies,
+      },
+      extensions: {
+        ...(metadata.extensions || {}),
+        form: formOverlays,
+      },
+    };
+  }
   return {
     ...metadata,
     extensions: {
-      ...metadata.extensions,
+      ...(metadata.extensions || {}),
       form: formOverlays,
     },
   };
 };
+
 
 const generateFormOverlay = (metadata) => {
   if (
