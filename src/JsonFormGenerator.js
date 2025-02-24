@@ -34,28 +34,47 @@ const findBundleByCaptureBase = (captureBase, bundle, dependencies) => {
   return null;
 };
 
-const generateOverlayForItem = (item) => {
+const generateOverlayForItem = (item, isFirst = false, dependencies = []) => {
   const captureBaseId = item.capture_base?.d;
   const attributes = item.capture_base?.attributes || {};
   const attributeKeys = Object.keys(attributes);
 
-
-  
-  let metaForBundle = item.overlays.meta.filter((m) => m.capture_base === captureBaseId);
+  let metaForBundle = item.overlays.meta.filter(
+    (m) => m.capture_base === captureBaseId
+  );
   if (metaForBundle.length === 0) {
-    metaForBundle = [
-      { language: "eng", name: "Default" },
-      { language: "fra", name: "Default" }
-    ];
+    metaForBundle = [];
   }
 
-  const languages = metaForBundle.map((m) => m.language);
-  console.log("Languages:", languages);
+  const languages =
+    metaForBundle.length > 0 ? metaForBundle.map((m) => m.language) : [];
+
   const page_labels = {};
+
   languages.forEach((lang) => {
     const metaObj = metaForBundle.find((m) => m.language === lang);
-    const defaultLabel = metaObj ? `Page 1: ${metaObj.name}` : "Page 1: Default";
+    const defaultLabel = metaObj
+      ? `Page 1: ${metaObj.name}`
+      : "Page 1: Default page labels";
     page_labels[lang] = { "page-1": defaultLabel };
+  });
+
+  const sidebar_label = {};
+  languages.forEach((lang) => {
+    const metaObj = metaForBundle.find((m) => m.language === lang);
+    const defaultLabel = metaObj
+      ? `sidebar: ${metaObj.name}`
+      : "Default sidebar label";
+    sidebar_label[lang] = { "page-1": defaultLabel };
+  });
+
+  const subheading = {};
+  languages.forEach((lang) => {
+    const metaObj = metaForBundle.find((m) => m.language === lang);
+    const defaultLabel = metaObj
+      ? `subheading: ${metaObj.name}`
+      : "Default subheading";
+    subheading[lang] = { "page-1": defaultLabel };
   });
 
   const overlay = {
@@ -66,14 +85,39 @@ const generateOverlayForItem = (item) => {
     pages: [],
     page_order: [],
     page_labels: page_labels,
+    sidebar_label: sidebar_label,
+    subheading: subheading,
     interaction: [],
   };
 
+  if (isFirst && languages.length > 0) {
+    const title = {};
+    languages.forEach((lang) => {
+      const metaObj = metaForBundle.find((m) => m.language === lang);
+      if (metaObj) {
+        title[lang] = metaObj.title || metaObj.name;
+      }
+    });
+    overlay.title = title;
+  }
+
   overlay.pages.push({
     named_section: "page-1",
-    attribute_order: attributeKeys,
+    attribute_order: [
+      {
+        named_section: "section-1",
+        attribute_order: attributeKeys,
+      },
+    ],
   });
-  overlay.page_order.push("page-1");
+
+  // overlay.pages.push({
+  //   named_section: "page-1",
+  //   attribute_order: attributeKeys,
+  // });
+
+  // overlay.page_order.push("page-1");
+  overlay.page_order = overlay.pages.map((page) => page.named_section);
 
   const interactionArguments = {};
   attributeKeys.forEach((key) => {
@@ -93,27 +137,67 @@ const generateOverlayForItem = (item) => {
     }
 
     interactionArguments[key] = { type: inputType };
+
+    if (inputType === "textarea") {
+      interactionArguments[key].placeholder = {};
+      languages.forEach((lang) => {
+        interactionArguments[key].placeholder[
+          lang
+        ] = `Enter ...(customize the example as the place holder)`;
+      });
+    }
+
+    if (inputType === "reference") {
+      interactionArguments[key].reference_button_text = {};
+      languages.forEach((lang) => {
+        interactionArguments[key].reference_button_text[lang] = `default`;
+      });
+    }
+
+    const attrTypeStr =
+      typeof attrType === "string" ? attrType : String(attrType);
+    if (attrTypeStr.startsWith("refs:")) {
+      const childCaptureBaseId = attrTypeStr.substring(5); // Remove the "refs:" prefix
+      const childBundle = findBundleByCaptureBase(
+        childCaptureBaseId,
+        item,
+        dependencies
+      );
+      if (
+        childBundle &&
+        childBundle.capture_base &&
+        childBundle.capture_base.attributes
+      ) {
+        const childAttributeKeys = Object.keys(
+          childBundle.capture_base.attributes
+        );
+        if (childAttributeKeys.length > 0) {
+          interactionArguments[key].showing_attribute = childAttributeKeys.slice(0, 2);
+        }
+      }
+    }
   });
   overlay.interaction.push({ arguments: interactionArguments });
 
   return overlay;
 };
 
+
 const generateFormOverlays = (metadata) => {
   const overlays = [];
   const mainBundle = metadata.oca_bundle?.bundle ?? metadata.bundle;
-  const dependencies = metadata.oca_bundle?.dependencies ?? metadata.dependencies ?? [];
-  
+  const dependencies =
+    metadata.oca_bundle?.dependencies ?? metadata.dependencies ?? [];
 
   normalizeEntryCodes(dependencies);
 
-  overlays.push(generateOverlayForItem(mainBundle));
+  overlays.push(generateOverlayForItem(mainBundle, true, dependencies));
 
   // Recursively process dependencies.
   const processDependencies = (deps) => {
     if (!deps) return;
     deps.forEach((dep) => {
-      overlays.push(generateOverlayForItem(dep));
+      overlays.push(generateOverlayForItem(dep, false, dependencies));
       if (dep.dependencies) {
         processDependencies(dep.dependencies);
       }
@@ -137,7 +221,6 @@ const getUpdatedMetadataWithFormOverlay = (metadata) => {
     };
   }
 
-  
   if (metadata.bundle && metadata.dependencies) {
     return {
       oca_bundle: {
@@ -158,7 +241,6 @@ const getUpdatedMetadataWithFormOverlay = (metadata) => {
     },
   };
 };
-
 
 const generateFormOverlay = (metadata) => {
   if (
