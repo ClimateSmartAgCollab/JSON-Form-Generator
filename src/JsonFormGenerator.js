@@ -172,7 +172,8 @@ const generateOverlayForItem = (item, isFirst = false, dependencies = []) => {
           childBundle.capture_base.attributes
         );
         if (childAttributeKeys.length > 0) {
-          interactionArguments[key].showing_attribute = childAttributeKeys.slice(0, 2);
+          interactionArguments[key].showing_attribute =
+            childAttributeKeys.slice(0, 2);
         }
       }
     }
@@ -181,7 +182,6 @@ const generateOverlayForItem = (item, isFirst = false, dependencies = []) => {
 
   return overlay;
 };
-
 
 const generateFormOverlays = (metadata) => {
   const overlays = [];
@@ -209,15 +209,45 @@ const generateFormOverlays = (metadata) => {
 };
 
 const getUpdatedMetadataWithFormOverlay = (metadata) => {
-  const formOverlays = generateFormOverlay(metadata);
+  const formOverlays = generateFormOverlays(metadata); // Always generate a new form overlay
+
+  // If adc overlays exist, keep non-form overlays, but always replace form
+  let existingAdc =
+    metadata.extensions && metadata.extensions.adc
+      ? metadata.extensions.adc
+      : {};
+
+  const adcExtensions = formOverlays.reduce((acc, overlay) => {
+    if (overlay.capture_base) {
+      const { capture_base, ...overlayWithoutCaptureBase } = overlay;
+      // Keep other overlays (besides form) if present
+      const existing = existingAdc[capture_base] || {};
+      const otherOverlays =
+        existing.overlays && typeof existing.overlays === "object"
+          ? Object.fromEntries(
+              Object.entries(existing.overlays).filter(([k]) => k !== "form")
+            )
+          : {};
+      acc[capture_base] = {
+        d: "######## SAID OF THE CONTENT ########",
+        type: "community/adc/extension/1.0",
+        overlays: {
+          form: [overlayWithoutCaptureBase],
+          ...otherOverlays,
+        },
+      };
+    }
+    return acc;
+  }, {});
+
+  const newExtensions = { ...(metadata.extensions || {}) };
+  delete newExtensions.form;
+  newExtensions.adc = adcExtensions;
 
   if (metadata.oca_bundle) {
     return {
       ...metadata,
-      extensions: {
-        ...(metadata.extensions || {}),
-        form: formOverlays,
-      },
+      extensions: newExtensions,
     };
   }
 
@@ -227,31 +257,35 @@ const getUpdatedMetadataWithFormOverlay = (metadata) => {
         bundle: metadata.bundle,
         dependencies: metadata.dependencies,
       },
-      extensions: {
-        ...(metadata.extensions || {}),
-        form: formOverlays,
-      },
+      extensions: newExtensions,
     };
   }
   return {
     ...metadata,
-    extensions: {
-      ...(metadata.extensions || {}),
-      form: formOverlays,
-    },
+    extensions: newExtensions,
   };
 };
 
-const generateFormOverlay = (metadata) => {
-  if (
-    metadata.extensions &&
-    metadata.extensions.form &&
-    metadata.extensions.form.length > 0
-  ) {
-    return metadata.extensions.form;
-  }
-  return generateFormOverlays(metadata);
-};
+// const generateFormOverlay = (metadata) => {
+//   if (metadata?.extensions?.adc) {
+//     const adc = metadata.extensions.adc;
+//     const overlays = Object.values(adc).flatMap(
+//       (ext) => ext.overlays?.form || []
+//     );
+//     if (overlays.length > 0) {
+//       return overlays;
+//     }
+//   }
+
+//   if (
+//     metadata.extensions &&
+//     metadata.extensions.form &&
+//     metadata.extensions.form.length > 0
+//   ) {
+//     return metadata.extensions.form;
+//   }
+//   return generateFormOverlays(metadata);
+// };
 
 function JsonFormGenerator({ jsonData, onFileLoaded }) {
   const [copySuccess, setCopySuccess] = useState("");

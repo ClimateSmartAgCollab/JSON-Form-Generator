@@ -15,10 +15,10 @@ function FileDropzone({ onFileLoaded }) {
             console.error("Uploaded file is empty");
             return;
           }
-          console.log("Raw File Content:", text);
+          // console.log("Raw File Content:", text);
           try {
             const json = JSON.parse(text);
-            console.log("Parsed JSON:", json);
+            // console.log("Parsed JSON:", json);
             onFileLoaded(json);
           } catch (err) {
             console.error("Error parsing JSON:", err);
